@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>使い方・FAQ | 動画プレイヤー風UI合成ツール</title>
+  <meta name="description" content="動画プレイヤー風UI合成ツールの詳しい使い方、活用アイデア、推奨画像サイズ、スマホ・アプリ内ブラウザでの保存方法やFAQをまとめています。" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="title-group">
+        <h1><a href="./">動画プレイヤー風UI合成ツール</a></h1>
+        <p>使い方ガイド・活用例・よくある質問</p>
+      </div>
+      <div class="header-right">
+        <nav class="site-nav" aria-label="サイトナビゲーション">
+          <a class="nav-link" href="./">ツール</a>
+          <a class="nav-link" href="guide.html" aria-current="page">使い方・FAQ</a>
+          <a class="nav-link" href="privacy.html">プライバシー</a>
+          <a class="nav-link" href="terms.html">利用規約</a>
+          <a class="nav-link" href="contact.html">お問い合わせ</a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="article-container">
+      <article class="content-card">
+        <h2>1. ツールでできること</h2>
+        <p>
+          イラストやスクリーンショット、写真などの静止画に対して、動画プレイヤー風の操作UI（下部のグラデーション帯、シークバー、再生／一時停止ボタン、音量アイコン、再生時間表示、全画面アイコン、中央の再生アイコン）をバランスよく自動スケーリングして重ねるツールです。
+        </p>
+        <ul>
+          <li><strong>解像度劣化なし:</strong> 縦長・横長・正方形を問わず、元画像のピクセルサイズ（例: 1920×1080、2894×4093 など）に合わせてUIの太さや文字サイズを自動計算してPNG出力します。</li>
+          <li><strong>色と空気感の調整:</strong> シークバーの色をプリセットやカラーピッカーで変更でき、イラストの雰囲気に合わせたUI色（白・青・赤・ピンクなど）を選べます。</li>
+          <li><strong>完全ローカル動作:</strong> サーバーへ画像を送信しないため、未公開のイラストや下書きでも外部漏洩の心配なく利用できます。</li>
+        </ul>
+      </article>
+
+      <article class="content-card">
+        <h2>2. おすすめの活用シーンと調整のコツ</h2>
+        <h3>MV風・アニメのワンカット風イラスト</h3>
+        <p>
+          16:9（例: 1920×1080 / 1280×720）の横長イラストに、総時間を「3:45」や「24:00」などに設定してシークバーを少し進めた状態にすると、ミュージックビデオやアニメ本編のワンシーンのような雰囲気が出ます。
+        </p>
+        <h3>「再生直前」や「クライマックス」の演出</h3>
+        <ul>
+          <li><strong>再生前（一時停止 ▶）:</strong> 中央アイコンをON、進み具合を 0%〜数% にすると「これから始まる」サムネイル風になります。</li>
+          <li><strong>再生中のワンシーン（❚❚）:</strong> 再生状態を「再生中（❚❚）」にし、中央アイコンをOFF・UIの濃さを 70〜85% 程度に落とすと、イラストを邪魔しにくい自然なUIになります。</li>
+        </ul>
+      </article>
+
+      <div class="ad-zone" aria-label="広告枠"></div>
+
+      <article class="content-card">
+        <h2>3. よくある質問（FAQ）</h2>
+        <dl class="faq-list">
+          <div class="faq-item">
+            <dt>Q. 対応している画像形式は何ですか？</dt>
+            <dd>A. PNG・JPEG・WebP 形式に対応しています。書き出し形式は画質劣化のない PNG です。</dd>
+          </div>
+          <div class="faq-item">
+            <dt>Q. スマホのアプリ内ブラウザ（X・LINE・Instagram等）で「PNGで書き出す」を押しても保存できません。</dt>
+            <dd>A. 一部のアプリ内ブラウザではダウンロードリンク（download属性）が制限されています。書き出し後に表示されるプレビュー画像を<strong>長押しして「写真に保存」</strong>するか、「共有 / 写真に保存」「別タブで開く」ボタンをお使いください。可能であれば Safari や Chrome などの標準ブラウザで開くとスムーズです。</dd>
+          </div>
+          <div class="faq-item">
+            <dt>Q. すごく大きな画像（4000px超など）をスマホで書き出すとエラーになります。</dt>
+            <dd>A. モバイルブラウザ（特に iOS Safari）には Canvas のメモリ上限があるため、超高解像度画像では書き出しが失敗する場合があります。その場合は表示される「50%サイズで再試行」ボタンを使うか、PCブラウザからお試しください。</dd>
+          </div>
+          <div class="faq-item">
+            <dt>Q. 作成した画像はSNS投稿や商用案件に使っても大丈夫ですか？</dt>
+            <dd>A. 本ツールで生成した画像自体の利用制限は設けていません。ただし、アップロードする元画像の著作権・利用権および、閲覧者に誤解を与えない表現（なりすましや誤クリック誘導の禁止など）については <a href="terms.html">利用規約・免責事項</a> をご確認ください。</dd>
+          </div>
+        </dl>
+      </article>
+    </main>
+
+    <footer class="app-footer">
+      <div><span>動画プレイヤー風UI合成ツール（仮）</span></div>
+      <nav class="footer-links" aria-label="フッターリンク">
+        <a href="./">ツールトップ</a>
+        <a href="guide.html">使い方・FAQ</a>
+        <a href="privacy.html">プライバシーポリシー</a>
+        <a href="terms.html">利用規約・免責事項</a>
+        <a href="contact.html">お問い合わせ</a>
+      </nav>
+    </footer>
+  </div>
+</body>
+</html>
