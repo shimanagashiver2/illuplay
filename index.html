@@ -1,0 +1,1655 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>動画プレイヤー風UI合成ツール | ブラウザ完結PNG書き出し</title>
+  <meta name="description" content="イラストにYouTube風の動画プレイヤーUIを重ねて、元画像解像度のままPNGで書き出せるブラウザ完結型Webツール。" />
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    :root {
+      color-scheme: dark;
+      --bg: #0d0f14;
+      --surface: #161922;
+      --surface-2: #1e222e;
+      --surface-hover: #262b3a;
+      --border: #2a3040;
+      --border-strong: #3a4258;
+      --text: #f3f5f8;
+      --text-muted: #9aa3b5;
+      --accent: #ef4444;
+      --accent-hover: #dc2626;
+      --accent-soft: rgba(239, 68, 68, 0.14);
+      --ok: #22c55e;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", Meiryo, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .app-shell {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 20px 16px 36px;
+    }
+
+    /* Header */
+    .app-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .title-group h1 {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--text);
+    }
+
+    .title-group p {
+      margin: 4px 0 0;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .privacy-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .privacy-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--ok);
+      flex-shrink: 0;
+    }
+
+    /* Main Grid */
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 20px;
+      align-items: start;
+    }
+
+    @media (max-width: 920px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Preview Panel */
+    .preview-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .preview-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 32px;
+    }
+
+    .file-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      min-width: 0;
+    }
+
+    .file-name {
+      color: var(--text);
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 240px;
+    }
+
+    .file-dim {
+      font-variant-numeric: tabular-nums;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      font-size: 0.76rem;
+      white-space: nowrap;
+    }
+
+    .toolbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-secondary {
+      appearance: none;
+      border: 1px solid var(--border-strong);
+      background: var(--surface-2);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .btn-secondary:hover {
+      background: var(--surface-hover);
+      border-color: #4b5572;
+    }
+
+    .btn-secondary:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    /* Dropzone & Stage */
+    .stage-container {
+      position: relative;
+      width: 100%;
+      min-height: 320px;
+      border-radius: var(--radius-sm);
+      background: #08090c;
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      transition: border-color 0.15s, background-color 0.15s;
+    }
+
+    .stage-container.has-image {
+      min-height: 0;
+    }
+
+    .stage-container.is-dragover {
+      border-color: var(--accent);
+      background: #141016;
+    }
+
+    .stage-container.is-dragover::after {
+      content: "ここにドロップして画像を読み込む";
+      position: absolute;
+      inset: 8px;
+      border: 2px dashed var(--accent);
+      border-radius: var(--radius-sm);
+      background: rgba(13, 15, 20, 0.78);
+      color: var(--text);
+      font-weight: 700;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      pointer-events: none;
+    }
+
+    .dropzone-empty {
+      width: 100%;
+      min-height: 360px;
+      padding: 36px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      cursor: pointer;
+      border: 2px dashed var(--border-strong);
+      border-radius: var(--radius-sm);
+      margin: 12px;
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    .dropzone-empty:hover,
+    .dropzone-empty:focus-visible {
+      border-color: var(--accent);
+      background: rgba(255, 255, 255, 0.02);
+      outline: none;
+    }
+
+    .dropzone-icon {
+      width: 48px;
+      height: 48px;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+
+    .dropzone-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin: 0 0 6px;
+    }
+
+    .dropzone-sub {
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      margin: 0 0 14px;
+    }
+
+    .format-pills {
+      display: inline-flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .format-pill {
+      font-size: 0.74rem;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+
+    /* Preview Canvas Frame */
+    .preview-frame {
+      position: relative;
+      display: inline-block;
+      line-height: 0;
+      max-width: 100%;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .preview-frame[hidden] {
+      display: none;
+    }
+
+    #previewImg {
+      display: block;
+      max-width: 100%;
+      max-height: 68vh;
+      width: auto;
+      height: auto;
+      pointer-events: none;
+    }
+
+    /* YouTube-style Player Overlay (scales dynamically via JS inline styles) */
+    .player-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: auto;
+      font-family: "Roboto", system-ui, -apple-system, "Segoe UI", "Noto Sans JP", sans-serif;
+      color: #ffffff;
+    }
+
+    .overlay-gradient {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0) 0%,
+        rgba(0, 0, 0, 0.38) 45%,
+        rgba(0, 0, 0, 0.82) 100%
+      );
+      pointer-events: none;
+    }
+
+    .overlay-center-btn {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.58);
+      border: none;
+      padding: 0;
+      margin: 0;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .overlay-center-btn[hidden] {
+      display: none;
+    }
+
+    .overlay-bottom {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .overlay-seekbar {
+      position: relative;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.3);
+      cursor: pointer;
+      touch-action: none;
+    }
+
+    .overlay-seekbar-hit {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: -10px;
+      bottom: -10px;
+    }
+
+    .overlay-seekbar-progress {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      background: #ff0000;
+      pointer-events: none;
+    }
+
+    .overlay-seekbar-thumb {
+      position: absolute;
+      top: 50%;
+      border-radius: 50%;
+      background: #ff0000;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+
+    .overlay-controls-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+    }
+
+    .overlay-left {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .overlay-right {
+      display: flex;
+      align-items: center;
+    }
+
+    .overlay-icon-btn {
+      background: none;
+      border: none;
+      padding: 0;
+      margin: 0;
+      color: #ffffff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .overlay-icon-static {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      flex-shrink: 0;
+    }
+
+    .overlay-time {
+      color: rgba(255, 255, 255, 0.96);
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      white-space: nowrap;
+      letter-spacing: 0.01em;
+    }
+
+    .preview-hint {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin: 0;
+    }
+
+    /* Controls Panel */
+    .controls-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .controls-title {
+      margin: 0;
+      font-size: 0.98rem;
+      font-weight: 700;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .control-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .control-label {
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .control-value {
+      font-size: 0.84rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-muted);
+    }
+
+    /* Range Slider */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      outline: none;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid #ffffff;
+      cursor: pointer;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+      transition: transform 0.1s;
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.1);
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid #ffffff;
+      cursor: pointer;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+    }
+
+    /* Time Inputs */
+    .time-inputs-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .time-field {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 0 10px;
+      transition: border-color 0.15s;
+    }
+
+    .time-field:focus-within {
+      border-color: var(--accent);
+    }
+
+    .time-field input {
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      padding: 9px 4px 9px 0;
+      outline: none;
+      text-align: right;
+    }
+
+    .time-field span {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      flex-shrink: 0;
+      margin-left: 2px;
+    }
+
+    .time-colon {
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+
+    /* Segmented Control */
+    .segmented {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      background: var(--surface-2);
+      padding: 4px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+    }
+
+    .seg-btn {
+      appearance: none;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-family: inherit;
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 8px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .seg-btn svg {
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+    }
+
+    .seg-btn.is-active {
+      background: var(--surface-hover);
+      color: var(--text);
+      box-shadow: inset 0 0 0 1px var(--border-strong);
+    }
+
+    /* Toggle Row */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+    }
+
+    .toggle-row span {
+      font-size: 0.86rem;
+      font-weight: 600;
+    }
+
+    .switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+      position: absolute;
+    }
+
+    .switch-track {
+      position: absolute;
+      inset: 0;
+      border-radius: 999px;
+      background: #353c4f;
+      transition: background 0.18s;
+    }
+
+    .switch-track::after {
+      content: "";
+      position: absolute;
+      left: 3px;
+      top: 3px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #ffffff;
+      transition: transform 0.18s;
+    }
+
+    .switch input:checked + .switch-track {
+      background: var(--accent);
+    }
+
+    .switch input:checked + .switch-track::after {
+      transform: translateX(20px);
+    }
+
+    .switch input:focus-visible + .switch-track {
+      box-shadow: 0 0 0 2px #ffffff;
+    }
+
+    /* Export Section */
+    .export-box {
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .btn-primary {
+      appearance: none;
+      width: 100%;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: var(--accent);
+      color: #ffffff;
+      font-family: inherit;
+      font-size: 0.96rem;
+      font-weight: 700;
+      padding: 13px 16px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background 0.15s, transform 0.1s;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    .btn-primary:active:not(:disabled) {
+      transform: scale(0.99);
+    }
+
+    .btn-primary:disabled {
+      background: #2f3545;
+      color: #7d8699;
+      cursor: not-allowed;
+    }
+
+    .export-meta {
+      margin: 0;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .status-msg {
+      margin: 0;
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      font-size: 0.8rem;
+      text-align: center;
+    }
+
+    .status-msg[hidden] {
+      display: none;
+    }
+
+    .status-msg.is-error {
+      background: rgba(239, 68, 68, 0.14);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+    }
+
+    .status-msg.is-success {
+      background: rgba(34, 197, 94, 0.14);
+      border: 1px solid rgba(34, 197, 94, 0.4);
+      color: #86efac;
+    }
+
+    /* Mobile tweaks */
+    @media (max-width: 600px) {
+      .app-shell {
+        padding: 14px 12px 28px;
+      }
+      .preview-card, .controls-card {
+        padding: 14px;
+      }
+      .dropzone-empty {
+        min-height: 240px;
+        padding: 24px 14px;
+      }
+      .stage-container {
+        min-height: 240px;
+      }
+      #previewImg {
+        max-height: 55vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="title-group">
+        <h1>動画プレイヤー風UI合成ツール</h1>
+        <p>イラストに動画プレイヤー風のUIを重ねて、元解像度のままPNGで書き出せます。</p>
+      </div>
+      <div class="privacy-badge" title="アップロードした画像はサーバーに送信されません">
+        <span class="privacy-dot" aria-hidden="true"></span>
+        ブラウザ内完結・サーバー送信なし
+      </div>
+    </header>
+
+    <main class="workspace">
+      <!-- Preview / Upload Area -->
+      <section class="preview-card" aria-label="プレビュー領域">
+        <div class="preview-toolbar">
+          <div class="file-meta" id="fileMeta">
+            <span id="fileNameLabel">画像が未選択です</span>
+            <span class="file-dim" id="fileDimLabel" hidden>0 × 0 px</span>
+          </div>
+          <div class="toolbar-actions">
+            <button type="button" class="btn-secondary" id="changeImgBtn" hidden>画像を変更</button>
+            <button type="button" class="btn-secondary" id="clearImgBtn" hidden>クリア</button>
+          </div>
+        </div>
+
+        <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" hidden />
+
+        <div class="stage-container" id="stageContainer">
+          <!-- Empty Upload Dropzone -->
+          <div class="dropzone-empty" id="dropzone" role="button" tabindex="0" aria-label="画像をアップロード">
+            <svg class="dropzone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="16" rx="2.5"></rect>
+              <circle cx="8.5" cy="9.5" r="1.5"></circle>
+              <path d="M21 15l-4.5-4.5a1.5 1.5 0 0 0-2.1 0L7 18"></path>
+            </svg>
+            <p class="dropzone-title">ここにイラストをドラッグ＆ドロップ</p>
+            <p class="dropzone-sub">またはクリックしてファイルを選択</p>
+            <div class="format-pills">
+              <span class="format-pill">PNG</span>
+              <span class="format-pill">JPEG</span>
+              <span class="format-pill">WebP</span>
+            </div>
+          </div>
+
+          <!-- Active Preview with Overlay -->
+          <div class="preview-frame" id="previewFrame" hidden>
+            <img id="previewImg" alt="アップロードされたイラストのプレビュー" />
+
+            <div class="player-overlay" id="playerOverlay">
+              <div class="overlay-gradient" id="overlayGradient"></div>
+
+              <!-- Center Play/Pause Icon -->
+              <button type="button" class="overlay-center-btn" id="overlayCenterBtn" aria-label="再生・一時停止を切り替え">
+                <svg id="overlayCenterSvg" viewBox="0 0 24 24" aria-hidden="true"></svg>
+              </button>
+
+              <!-- Bottom Controls -->
+              <div class="overlay-bottom" id="overlayBottom">
+                <div class="overlay-seekbar" id="overlaySeekbar" role="slider" aria-label="再生位置" aria-valuemin="0" aria-valuemax="100" aria-valuenow="35">
+                  <div class="overlay-seekbar-hit"></div>
+                  <div class="overlay-seekbar-progress" id="overlaySeekProgress"></div>
+                  <div class="overlay-seekbar-thumb" id="overlaySeekThumb"></div>
+                </div>
+
+                <div class="overlay-controls-row" id="overlayControlsRow">
+                  <div class="overlay-left">
+                    <button type="button" class="overlay-icon-btn" id="overlayPlayBtn" aria-label="再生・一時停止を切り替え">
+                      <svg id="overlayPlaySvg" viewBox="0 0 24 24" aria-hidden="true"></svg>
+                    </button>
+
+                    <span class="overlay-icon-static" id="overlayVolumeWrap" aria-hidden="true">
+                      <svg id="overlayVolumeSvg" viewBox="0 0 24 24"></svg>
+                    </span>
+
+                    <span class="overlay-time" id="overlayTimeText">1:19 / 3:45</span>
+                  </div>
+
+                  <div class="overlay-right">
+                    <span class="overlay-icon-static" id="overlayFullscreenWrap" aria-hidden="true">
+                      <svg id="overlayFullscreenSvg" viewBox="0 0 24 24"></svg>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p class="preview-hint" id="previewHint" hidden>
+          プレビュー上のシークバーや再生アイコンを直接クリック・ドラッグしても調整できます。画像のドラッグ＆ドロップで差し替え可能です。
+        </p>
+      </section>
+
+      <!-- Controls Panel -->
+      <aside class="controls-card" aria-label="調整パネル">
+        <h2 class="controls-title">プレイヤーUI設定</h2>
+
+        <!-- Seek Progress -->
+        <div class="control-group">
+          <div class="control-header">
+            <label class="control-label" for="progressSlider">シークバーの進み具合</label>
+            <span class="control-value" id="progressValue">35%</span>
+          </div>
+          <input type="range" id="progressSlider" min="0" max="100" step="0.5" value="35" />
+        </div>
+
+        <!-- Total Duration -->
+        <div class="control-group">
+          <div class="control-header">
+            <span class="control-label">総時間（分：秒）</span>
+            <span class="control-value" id="calculatedTimeValue">現在 1:19 / 3:45</span>
+          </div>
+          <div class="time-inputs-row">
+            <label class="time-field">
+              <input type="number" id="minutesInput" min="0" max="999" value="3" inputmode="numeric" aria-label="総時間の分" />
+              <span>分</span>
+            </label>
+            <span class="time-colon">:</span>
+            <label class="time-field">
+              <input type="number" id="secondsInput" min="0" max="59" value="45" inputmode="numeric" aria-label="総時間の秒" />
+              <span>秒</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Play / Pause State -->
+        <div class="control-group">
+          <span class="control-label">再生／一時停止の表示</span>
+          <div class="segmented" role="group" aria-label="再生・一時停止状態の切り替え">
+            <button type="button" class="seg-btn is-active" id="statePausedBtn" data-state="paused">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M8.5 5v14l11-7z" fill="currentColor"></path>
+              </svg>
+              一時停止（▶）
+            </button>
+            <button type="button" class="seg-btn" id="statePlayingBtn" data-state="playing">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6.5 5h4v14h-4zm7 0h4v14h-4z" fill="currentColor"></path>
+              </svg>
+              再生中（❚❚）
+            </button>
+          </div>
+        </div>
+
+        <!-- Center Icon Toggle -->
+        <label class="toggle-row" for="centerIconToggle">
+          <span>中央アイコン表示</span>
+          <span class="switch">
+            <input type="checkbox" id="centerIconToggle" checked />
+            <span class="switch-track"></span>
+          </span>
+        </label>
+
+        <!-- UI Opacity -->
+        <div class="control-group">
+          <div class="control-header">
+            <label class="control-label" for="opacitySlider">UIの濃さ（不透明度）</label>
+            <span class="control-value" id="opacityValue">100%</span>
+          </div>
+          <input type="range" id="opacitySlider" min="0" max="100" step="1" value="100" />
+        </div>
+
+        <!-- Export -->
+        <div class="export-box">
+          <button type="button" class="btn-primary" id="exportBtn" disabled>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3v12"></path>
+              <path d="M7 10l5 5 5-5"></path>
+              <path d="M5 20h14"></path>
+            </svg>
+            PNGで書き出す
+          </button>
+          <p class="export-meta" id="exportMeta">画像をアップロードすると書き出しできます</p>
+          <p class="status-msg" id="statusMsg" hidden></p>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // Custom SVG paths in 24x24 viewBox (shared identically between DOM SVG and Canvas Path2D)
+      const ICONS = {
+        play: {
+          fills: ['M8.5 5v14l11-7z'],
+          strokes: []
+        },
+        pause: {
+          fills: ['M6.5 5h4v14h-4z', 'M13.5 5h4v14h-4z'],
+          strokes: []
+        },
+        volume: {
+          fills: ['M3.5 9.25v5.5h3.75L12 19.25V4.75L7.25 9.25H3.5z'],
+          strokes: [
+            { d: 'M15.2 8.8a4.5 4.5 0 0 1 0 6.4', width: 1.9, cap: 'round', join: 'round' },
+            { d: 'M17.8 6.2a8.2 8.2 0 0 1 0 11.6', width: 1.9, cap: 'round', join: 'round' }
+          ]
+        },
+        fullscreen: {
+          fills: [
+            'M4 9.5V4h5.5v2H6v3.5H4z',
+            'M14.5 4H20v5.5h-2V6h-3.5V4z',
+            'M18 14.5h2V20h-5.5v-2H18v-3.5z',
+            'M4 14.5h2V18h3.5v2H4v-5.5z'
+          ],
+          strokes: []
+        }
+      };
+
+      const ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/webp']);
+      const ALLOWED_EXT_RE = /\.(png|jpe?g|webp)$/i;
+
+      // App state
+      const state = {
+        image: null,
+        objectUrl: null,
+        fileName: '',
+        naturalWidth: 0,
+        naturalHeight: 0,
+        progress: 35,
+        minutes: 3,
+        seconds: 45,
+        isPlaying: false, // false => paused state (▶ icon), true => playing state (❚❚ icon)
+        showCenterIcon: true,
+        opacity: 100
+      };
+
+      // DOM elements
+      const fileInput = document.getElementById('fileInput');
+      const stageContainer = document.getElementById('stageContainer');
+      const dropzone = document.getElementById('dropzone');
+      const previewFrame = document.getElementById('previewFrame');
+      const previewImg = document.getElementById('previewImg');
+      const previewHint = document.getElementById('previewHint');
+
+      const fileNameLabel = document.getElementById('fileNameLabel');
+      const fileDimLabel = document.getElementById('fileDimLabel');
+      const changeImgBtn = document.getElementById('changeImgBtn');
+      const clearImgBtn = document.getElementById('clearImgBtn');
+
+      const playerOverlay = document.getElementById('playerOverlay');
+      const overlayGradient = document.getElementById('overlayGradient');
+      const overlayCenterBtn = document.getElementById('overlayCenterBtn');
+      const overlayCenterSvg = document.getElementById('overlayCenterSvg');
+      const overlayBottom = document.getElementById('overlayBottom');
+      const overlaySeekbar = document.getElementById('overlaySeekbar');
+      const overlaySeekProgress = document.getElementById('overlaySeekProgress');
+      const overlaySeekThumb = document.getElementById('overlaySeekThumb');
+      const overlayControlsRow = document.getElementById('overlayControlsRow');
+      const overlayPlayBtn = document.getElementById('overlayPlayBtn');
+      const overlayPlaySvg = document.getElementById('overlayPlaySvg');
+      const overlayVolumeWrap = document.getElementById('overlayVolumeWrap');
+      const overlayVolumeSvg = document.getElementById('overlayVolumeSvg');
+      const overlayTimeText = document.getElementById('overlayTimeText');
+      const overlayFullscreenWrap = document.getElementById('overlayFullscreenWrap');
+      const overlayFullscreenSvg = document.getElementById('overlayFullscreenSvg');
+
+      const progressSlider = document.getElementById('progressSlider');
+      const progressValue = document.getElementById('progressValue');
+      const minutesInput = document.getElementById('minutesInput');
+      const secondsInput = document.getElementById('secondsInput');
+      const calculatedTimeValue = document.getElementById('calculatedTimeValue');
+      const statePausedBtn = document.getElementById('statePausedBtn');
+      const statePlayingBtn = document.getElementById('statePlayingBtn');
+      const centerIconToggle = document.getElementById('centerIconToggle');
+      const opacitySlider = document.getElementById('opacitySlider');
+      const opacityValue = document.getElementById('opacityValue');
+
+      const exportBtn = document.getElementById('exportBtn');
+      const exportMeta = document.getElementById('exportMeta');
+      const statusMsg = document.getElementById('statusMsg');
+
+      // Render an ICONS entry into an <svg> element
+      function populateSvg(svgEl, iconDef) {
+        while (svgEl.firstChild) {
+          svgEl.removeChild(svgEl.firstChild);
+        }
+        const NS = 'http://www.w3.org/2000/svg';
+        for (const d of iconDef.fills) {
+          const p = document.createElementNS(NS, 'path');
+          p.setAttribute('d', d);
+          p.setAttribute('fill', 'currentColor');
+          svgEl.appendChild(p);
+        }
+        for (const s of iconDef.strokes) {
+          const p = document.createElementNS(NS, 'path');
+          p.setAttribute('d', s.d);
+          p.setAttribute('fill', 'none');
+          p.setAttribute('stroke', 'currentColor');
+          p.setAttribute('stroke-width', String(s.width));
+          p.setAttribute('stroke-linecap', s.cap);
+          p.setAttribute('stroke-linejoin', s.join);
+          svgEl.appendChild(p);
+        }
+      }
+
+      // Draw an ICONS entry onto a CanvasRenderingContext2D
+      function drawIconOnCanvas(ctx, iconDef, x, y, size) {
+        ctx.save();
+        ctx.translate(x, y);
+        const factor = size / 24;
+        ctx.scale(factor, factor);
+        ctx.fillStyle = '#ffffff';
+        ctx.strokeStyle = '#ffffff';
+
+        for (const d of iconDef.fills) {
+          ctx.fill(new Path2D(d));
+        }
+        for (const s of iconDef.strokes) {
+          ctx.lineWidth = s.width;
+          ctx.lineCap = s.cap;
+          ctx.lineJoin = s.join;
+          ctx.stroke(new Path2D(s.d));
+        }
+        ctx.restore();
+      }
+
+      // Proportional layout geometry in target image pixel space (W x H)
+      function computeLayout(W, H) {
+        const base = Math.min(W, H * 1.4);
+        const S = base / 1000;
+
+        const gradHeight = Math.min(H, 145 * S);
+        const padX = 22 * S;
+        const padBottom = 13 * S;
+        const trackH = Math.max(1.5, 4.5 * S);
+        const thumbR = 7 * S;
+        const seekGap = 12 * S;
+        const barH = 38 * S;
+        const iconSize = 26 * S;
+        const iconGap = 17 * S;
+        const timeGap = 16 * S;
+        const fontSize = 15 * S;
+        const centerSize = 76 * S;
+        const centerIconSize = 34 * S;
+
+        return {
+          gradHeight,
+          padX,
+          padBottom,
+          trackH,
+          thumbR,
+          seekGap,
+          barH,
+          iconSize,
+          iconGap,
+          timeGap,
+          fontSize,
+          centerSize,
+          centerIconSize
+        };
+      }
+
+      function formatTime(totalSec) {
+        const safe = Math.max(0, Math.round(totalSec));
+        const m = Math.floor(safe / 60);
+        const s = safe % 60;
+        return m + ':' + String(s).padStart(2, '0');
+      }
+
+      function getTimes() {
+        const totalSec = state.minutes * 60 + state.seconds;
+        const currentSec = Math.round(totalSec * (state.progress / 100));
+        return {
+          currentSec,
+          totalSec,
+          label: formatTime(currentSec) + ' / ' + formatTime(totalSec)
+        };
+      }
+
+      function showStatus(text, type) {
+        statusMsg.textContent = text;
+        statusMsg.className = 'status-msg ' + (type === 'error' ? 'is-error' : 'is-success');
+        statusMsg.hidden = false;
+      }
+
+      function clearStatus() {
+        statusMsg.hidden = true;
+        statusMsg.textContent = '';
+      }
+
+      // Sync UI controls and preview overlay
+      function renderAll() {
+        const times = getTimes();
+
+        // Controls readout
+        const pctStr = state.progress.toFixed(1).replace(/\.0$/, '') + '%';
+        progressValue.textContent = pctStr;
+        progressSlider.value = String(state.progress);
+
+        calculatedTimeValue.textContent = '現在 ' + times.label;
+
+        opacityValue.textContent = state.opacity + '%';
+        opacitySlider.value = String(state.opacity);
+
+        statePausedBtn.classList.toggle('is-active', !state.isPlaying);
+        statePlayingBtn.classList.toggle('is-active', state.isPlaying);
+        centerIconToggle.checked = state.showCenterIcon;
+
+        // Preview overlay values
+        const activeIcon = state.isPlaying ? ICONS.pause : ICONS.play;
+        populateSvg(overlayPlaySvg, activeIcon);
+        populateSvg(overlayCenterSvg, activeIcon);
+
+        overlayCenterBtn.hidden = !state.showCenterIcon;
+        overlayTimeText.textContent = times.label;
+
+        overlaySeekProgress.style.width = state.progress + '%';
+        overlaySeekThumb.style.left = state.progress + '%';
+        overlaySeekbar.setAttribute('aria-valuenow', String(state.progress));
+        playerOverlay.style.opacity = String(state.opacity / 100);
+
+        syncPreviewScale();
+      }
+
+      function syncPreviewScale() {
+        if (!state.image || previewFrame.hidden) return;
+        const dispW = previewImg.clientWidth;
+        if (!dispW || !state.naturalWidth) return;
+
+        const ratio = dispW / state.naturalWidth;
+        const L = computeLayout(state.naturalWidth, state.naturalHeight);
+
+        overlayGradient.style.height = (L.gradHeight * ratio) + 'px';
+
+        overlayBottom.style.paddingLeft = (L.padX * ratio) + 'px';
+        overlayBottom.style.paddingRight = (L.padX * ratio) + 'px';
+        overlayBottom.style.paddingBottom = (L.padBottom * ratio) + 'px';
+
+        overlaySeekbar.style.height = (L.trackH * ratio) + 'px';
+        overlaySeekbar.style.marginBottom = (L.seekGap * ratio) + 'px';
+
+        const thumbDia = L.thumbR * 2 * ratio;
+        overlaySeekThumb.style.width = thumbDia + 'px';
+        overlaySeekThumb.style.height = thumbDia + 'px';
+
+        overlayControlsRow.style.height = (L.barH * ratio) + 'px';
+
+        const iconPx = (L.iconSize * ratio) + 'px';
+        overlayPlayBtn.style.width = iconPx;
+        overlayPlayBtn.style.height = iconPx;
+        overlayPlayBtn.style.marginRight = (L.iconGap * ratio) + 'px';
+        overlayPlaySvg.style.width = iconPx;
+        overlayPlaySvg.style.height = iconPx;
+
+        overlayVolumeWrap.style.width = iconPx;
+        overlayVolumeWrap.style.height = iconPx;
+        overlayVolumeWrap.style.marginRight = (L.timeGap * ratio) + 'px';
+        overlayVolumeSvg.style.width = iconPx;
+        overlayVolumeSvg.style.height = iconPx;
+
+        overlayTimeText.style.fontSize = (L.fontSize * ratio) + 'px';
+
+        overlayFullscreenWrap.style.width = iconPx;
+        overlayFullscreenWrap.style.height = iconPx;
+        overlayFullscreenSvg.style.width = iconPx;
+        overlayFullscreenSvg.style.height = iconPx;
+
+        const centerPx = (L.centerSize * ratio) + 'px';
+        const centerIconPx = (L.centerIconSize * ratio) + 'px';
+        overlayCenterBtn.style.width = centerPx;
+        overlayCenterBtn.style.height = centerPx;
+        overlayCenterSvg.style.width = centerIconPx;
+        overlayCenterSvg.style.height = centerIconPx;
+      }
+
+      // Load image file completely client-side
+      function handleFile(file) {
+        if (!file) return;
+        clearStatus();
+
+        const isValidType = ALLOWED_MIME.has(file.type) || (!file.type && ALLOWED_EXT_RE.test(file.name));
+        if (!isValidType) {
+          showStatus('PNG・JPEG・WebP形式の画像ファイルを選択してください。', 'error');
+          return;
+        }
+
+        const nextUrl = URL.createObjectURL(file);
+        const img = new Image();
+
+        img.onload = function () {
+          if (state.objectUrl) {
+            URL.revokeObjectURL(state.objectUrl);
+          }
+          state.image = img;
+          state.objectUrl = nextUrl;
+          state.fileName = file.name || 'image';
+          state.naturalWidth = img.naturalWidth;
+          state.naturalHeight = img.naturalHeight;
+
+          previewImg.src = nextUrl;
+          stageContainer.classList.add('has-image');
+          dropzone.hidden = true;
+          previewFrame.hidden = false;
+          previewHint.hidden = false;
+          changeImgBtn.hidden = false;
+          clearImgBtn.hidden = false;
+
+          fileNameLabel.textContent = state.fileName;
+          fileDimLabel.textContent = state.naturalWidth + ' × ' + state.naturalHeight + ' px';
+          fileDimLabel.hidden = false;
+
+          exportBtn.disabled = false;
+          exportMeta.textContent = '出力サイズ: ' + state.naturalWidth + ' × ' + state.naturalHeight + ' px（PNG）';
+
+          requestAnimationFrame(renderAll);
+        };
+
+        img.onerror = function () {
+          URL.revokeObjectURL(nextUrl);
+          showStatus('画像の読み込みに失敗しました。別の画像でお試しください。', 'error');
+        };
+
+        img.src = nextUrl;
+      }
+
+      function clearImage() {
+        if (state.objectUrl) {
+          URL.revokeObjectURL(state.objectUrl);
+        }
+        state.image = null;
+        state.objectUrl = null;
+        state.fileName = '';
+        state.naturalWidth = 0;
+        state.naturalHeight = 0;
+
+        previewImg.removeAttribute('src');
+        stageContainer.classList.remove('has-image');
+        previewFrame.hidden = true;
+        previewHint.hidden = true;
+        dropzone.hidden = false;
+        changeImgBtn.hidden = true;
+        clearImgBtn.hidden = true;
+
+        fileNameLabel.textContent = '画像が未選択です';
+        fileDimLabel.hidden = true;
+        exportBtn.disabled = true;
+        exportMeta.textContent = '画像をアップロードすると書き出しできます';
+        fileInput.value = '';
+        clearStatus();
+      }
+
+      // Export PNG at exact natural resolution using Canvas
+      function exportPng() {
+        if (!state.image) return;
+        clearStatus();
+
+        const W = state.naturalWidth;
+        const H = state.naturalHeight;
+
+        const mainCanvas = document.createElement('canvas');
+        mainCanvas.width = W;
+        mainCanvas.height = H;
+        const mainCtx = mainCanvas.getContext('2d');
+        if (!mainCtx) {
+          showStatus('Canvasの初期化に失敗しました。', 'error');
+          return;
+        }
+
+        // Draw original illustration untouched
+        mainCtx.drawImage(state.image, 0, 0, W, H);
+
+        // Render UI into offscreen canvas at 100% alpha, then composite with uiOpacity
+        // so overlapping UI layers match CSS opacity compositing identically.
+        const uiAlpha = state.opacity / 100;
+        if (uiAlpha > 0) {
+          const uiCanvas = document.createElement('canvas');
+          uiCanvas.width = W;
+          uiCanvas.height = H;
+          const ctx = uiCanvas.getContext('2d');
+          if (!ctx) {
+            showStatus('UI合成用Canvasの初期化に失敗しました。', 'error');
+            return;
+          }
+
+          const L = computeLayout(W, H);
+          const times = getTimes();
+
+          // 1. Bottom gradient background
+          const gradTop = H - L.gradHeight;
+          const grad = ctx.createLinearGradient(0, gradTop, 0, H);
+          grad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+          grad.addColorStop(0.45, 'rgba(0, 0, 0, 0.38)');
+          grad.addColorStop(1, 'rgba(0, 0, 0, 0.82)');
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, gradTop, W, L.gradHeight);
+
+          // 2. Center Play/Pause Icon
+          if (state.showCenterIcon) {
+            const cx = W / 2;
+            const cy = H / 2;
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(cx, cy, L.centerSize / 2, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.58)';
+            ctx.fill();
+            ctx.restore();
+
+            const centerIcon = state.isPlaying ? ICONS.pause : ICONS.play;
+            drawIconOnCanvas(
+              ctx,
+              centerIcon,
+              cx - L.centerIconSize / 2,
+              cy - L.centerIconSize / 2,
+              L.centerIconSize
+            );
+          }
+
+          // 3. Seekbar
+          const trackX = L.padX;
+          const trackW = Math.max(0, W - L.padX * 2);
+          const seekBottom = H - L.padBottom - L.barH - L.seekGap;
+          const seekTop = seekBottom - L.trackH;
+          const seekCenterY = seekTop + L.trackH / 2;
+          const progressW = trackW * (state.progress / 100);
+
+          // Gray track
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+          ctx.fillRect(trackX, seekTop, trackW, L.trackH);
+
+          // Red progress
+          ctx.fillStyle = '#ff0000';
+          ctx.fillRect(trackX, seekTop, progressW, L.trackH);
+
+          // Red circular thumb
+          ctx.beginPath();
+          ctx.arc(trackX + progressW, seekCenterY, L.thumbR, 0, Math.PI * 2);
+          ctx.fillStyle = '#ff0000';
+          ctx.fill();
+
+          // 4. Bottom control row
+          const rowCenterY = H - L.padBottom - L.barH / 2;
+          const iconTopY = rowCenterY - L.iconSize / 2;
+          let curX = L.padX;
+
+          // Play / Pause icon
+          drawIconOnCanvas(ctx, state.isPlaying ? ICONS.pause : ICONS.play, curX, iconTopY, L.iconSize);
+          curX += L.iconSize + L.iconGap;
+
+          // Volume icon
+          drawIconOnCanvas(ctx, ICONS.volume, curX, iconTopY, L.iconSize);
+          curX += L.iconSize + L.timeGap;
+
+          // Time text
+          ctx.save();
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
+          ctx.font = '500 ' + L.fontSize + 'px "Roboto", system-ui, -apple-system, "Segoe UI", "Noto Sans JP", sans-serif';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(times.label, curX, rowCenterY);
+          ctx.restore();
+
+          // Fullscreen icon (bottom-right)
+          drawIconOnCanvas(ctx, ICONS.fullscreen, W - L.padX - L.iconSize, iconTopY, L.iconSize);
+
+          // Composite onto main image
+          mainCtx.save();
+          mainCtx.globalAlpha = uiAlpha;
+          mainCtx.drawImage(uiCanvas, 0, 0);
+          mainCtx.restore();
+        }
+
+        exportBtn.disabled = true;
+        try {
+          mainCanvas.toBlob(function (blob) {
+            exportBtn.disabled = false;
+            if (!blob) {
+              showStatus('PNGの生成に失敗しました。画像サイズが大きすぎる可能性があります。', 'error');
+              return;
+            }
+            const baseName = state.fileName.replace(/\.[^.]+$/, '') || 'illustration';
+            const downloadUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = baseName + '_player.png';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(function () {
+              URL.revokeObjectURL(downloadUrl);
+            }, 2000);
+            showStatus('PNG画像を書き出しました（' + W + ' × ' + H + ' px）', 'success');
+          }, 'image/png');
+        } catch (err) {
+          exportBtn.disabled = false;
+          showStatus('PNG書き出し中にエラーが発生しました。', 'error');
+        }
+      }
+
+      // Initialize static SVG icons
+      populateSvg(overlayVolumeSvg, ICONS.volume);
+      populateSvg(overlayFullscreenSvg, ICONS.fullscreen);
+
+      // Event bindings: File Upload
+      dropzone.addEventListener('click', function () {
+        fileInput.click();
+      });
+
+      dropzone.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          fileInput.click();
+        }
+      });
+
+      changeImgBtn.addEventListener('click', function () {
+        fileInput.click();
+      });
+
+      clearImgBtn.addEventListener('click', clearImage);
+
+      fileInput.addEventListener('change', function (e) {
+        const file = e.target.files && e.target.files[0];
+        if (file) handleFile(file);
+      });
+
+      // Drag and drop on entire stage (supports initial upload and replacing image)
+      let dragDepth = 0;
+      stageContainer.addEventListener('dragenter', function (e) {
+        e.preventDefault();
+        dragDepth++;
+        stageContainer.classList.add('is-dragover');
+      });
+
+      stageContainer.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        if (e.dataTransfer) {
+          e.dataTransfer.dropEffect = 'copy';
+        }
+      });
+
+      stageContainer.addEventListener('dragleave', function (e) {
+        e.preventDefault();
+        dragDepth = Math.max(0, dragDepth - 1);
+        if (dragDepth === 0) {
+          stageContainer.classList.remove('is-dragover');
+        }
+      });
+
+      stageContainer.addEventListener('drop', function (e) {
+        e.preventDefault();
+        dragDepth = 0;
+        stageContainer.classList.remove('is-dragover');
+        const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (file) handleFile(file);
+      });
+
+      // Controls bindings
+      progressSlider.addEventListener('input', function () {
+        state.progress = Math.min(100, Math.max(0, parseFloat(progressSlider.value) || 0));
+        renderAll();
+      });
+
+      function updateDurationFromInputs(clampStrict) {
+        let m = parseInt(minutesInput.value, 10);
+        let s = parseInt(secondsInput.value, 10);
+        if (Number.isNaN(m) || m < 0) m = 0;
+        if (m > 999) m = 999;
+        if (Number.isNaN(s) || s < 0) s = 0;
+        if (s > 59) s = 59;
+
+        state.minutes = m;
+        state.seconds = s;
+
+        if (clampStrict) {
+          minutesInput.value = String(m);
+          secondsInput.value = String(s);
+        }
+        renderAll();
+      }
+
+      minutesInput.addEventListener('input', function () {
+        updateDurationFromInputs(false);
+      });
+      minutesInput.addEventListener('blur', function () {
+        updateDurationFromInputs(true);
+      });
+      secondsInput.addEventListener('input', function () {
+        updateDurationFromInputs(false);
+      });
+      secondsInput.addEventListener('blur', function () {
+        updateDurationFromInputs(true);
+      });
+
+      statePausedBtn.addEventListener('click', function () {
+        state.isPlaying = false;
+        renderAll();
+      });
+
+      statePlayingBtn.addEventListener('click', function () {
+        state.isPlaying = true;
+        renderAll();
+      });
+
+      overlayPlayBtn.addEventListener('click', function () {
+        state.isPlaying = !state.isPlaying;
+        renderAll();
+      });
+
+      overlayCenterBtn.addEventListener('click', function () {
+        state.isPlaying = !state.isPlaying;
+        renderAll();
+      });
+
+      centerIconToggle.addEventListener('change', function () {
+        state.showCenterIcon = centerIconToggle.checked;
+        renderAll();
+      });
+
+      opacitySlider.addEventListener('input', function () {
+        state.opacity = Math.min(100, Math.max(0, parseInt(opacitySlider.value, 10) || 0));
+        renderAll();
+      });
+
+      // Interactive seekbar scrubbing on preview
+      function seekFromPointer(clientX) {
+        const rect = overlaySeekbar.getBoundingClientRect();
+        if (!rect.width) return;
+        const pct = ((clientX - rect.left) / rect.width) * 100;
+        const clamped = Math.min(100, Math.max(0, Math.round(pct * 2) / 2));
+        state.progress = clamped;
+        renderAll();
+      }
+
+      let isSeeking = false;
+      overlaySeekbar.addEventListener('pointerdown', function (e) {
+        isSeeking = true;
+        overlaySeekbar.setPointerCapture(e.pointerId);
+        seekFromPointer(e.clientX);
+      });
+      overlaySeekbar.addEventListener('pointermove', function (e) {
+        if (!isSeeking) return;
+        seekFromPointer(e.clientX);
+      });
+      overlaySeekbar.addEventListener('pointerup', function (e) {
+        if (!isSeeking) return;
+        isSeeking = false;
+        if (overlaySeekbar.hasPointerCapture(e.pointerId)) {
+          overlaySeekbar.releasePointerCapture(e.pointerId);
+        }
+      });
+      overlaySeekbar.addEventListener('pointercancel', function () {
+        isSeeking = false;
+      });
+
+      exportBtn.addEventListener('click', exportPng);
+
+      // Keep preview overlay scaled cleanly on window or image resize
+      if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(function () {
+          syncPreviewScale();
+        });
+        ro.observe(previewImg);
+      }
+      window.addEventListener('resize', syncPreviewScale);
+
+      // Initial render
+      renderAll();
+    })();
+  </script>
+</body>
+</html>
